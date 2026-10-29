@@ -12,7 +12,7 @@
     const paths = { arrow: '<path d="M4 12h15m-6-6 6 6-6 6"/>', back: '<path d="M20 12H5m6-6-6 6 6 6"/>', external: '<path d="M14 4h6v6m0-6L10 14M20 14v6H4V4h6"/>', close: '<path d="m6 6 12 12M6 18 18 6"/>', document: '<path d="M14 3H5v18h14V8zm0 0v5h5M8 12h8M8 16h6"/>', check: '<path d="m5 12 4 4L19 6"/>', route: '<circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h8a4 4 0 0 1 0 8H9a4 4 0 0 0 0 4h8"/>', layers: '<path d="m12 3 10 6-10 6L2 9zm-9 11 9 5 9-5M3 18l9 5 9-5"/>' };
     return `<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.document}</svg>`;
   };
-  const sourceLabels = {sf:'顺丰年报',customers:'客户记录',luxshare:'立讯项目','anker-report':'安克年报','anker-shipping':'安克配送规则','anker-returns':'安克退货规则',midea:'美的中报',sitc:'SITC公告',luckin:'瑞幸年报',schaerer:'Schaerer官网',dhl:'DHL布局',xpo:'XPO案例',sany:'三一欧洲',mixue:'蜜雪年报'};
+  const sourceLabels = {sf:'顺丰年报',customers:'客户记录',luxshare:'立讯项目','anker-report':'安克年报','anker-shipping':'安克配送规则','anker-returns':'安克退货规则',midea:'美的中报',sitc:'SITC公告','sitc-thailand':'SITC泰国服务','sitc-air':'SITC空运产品',luckin:'瑞幸年报',schaerer:'Schaerer官网',dhl:'DHL布局',xpo:'XPO案例',sany:'三一欧洲',mixue:'蜜雪年报'};
   const sources = (ids, compact = false) => `<span class="source-links">${[...new Set(ids)].map(id => {
     const s = sourceMap.get(id);
     return s ? `<button class="source-link ${compact ? 'compact' : ''}" data-source="${E(id)}" title="查看依据：${E(s.title)}" aria-label="查看依据：${E(s.title)}">${icon('document')}${E(compact ? sourceLabels[id] || s.publisher : s.title)}${icon('external')}</button>` : '';
@@ -49,11 +49,11 @@
     document.title = D.title;
     main.innerHTML = `<section class="home-hero">
       <div class="hero-copy"><div class="eyebrow">STRATEGY & EVIDENCE <span></span> 结论与依据</div><h1>中国企业出海，<br>供应链能力建在哪里<span class="title-dot">。</span></h1><p class="hero-subtitle">从客户业务与实际货流，推导可进入的服务和能力建设选择。</p></div>
-      <aside class="hero-judgment"><span class="small-label">本轮建设判断</span><p>北越做制造补给，<br>德国做品牌履约。</p><div>泰国围绕已有节点扩展；<br>进口业务沿中国买方采购关系延伸。</div><a href="#recommendations">查看建设建议 ${icon('arrow')}</a></aside>
+      <aside class="hero-judgment"><span class="small-label">本轮建设判断</span><p>北越做制造补给，<br>德国做品牌履约。</p><div>泰国先验证专项服务的竞争价值；<br>进口业务沿中国买方采购关系延伸。</div><a href="#recommendations">查看建设建议 ${icon('arrow')}</a></aside>
     </section>
     <div class="logic-strip" aria-label="论证顺序"><span>贸易背景</span>${icon('arrow')}<span>客户与货流</span>${icon('arrow')}<span>服务需求</span>${icon('arrow')}<span>进入条件</span>${icon('arrow')}<b>能力建设</b></div>
     <section class="recommendations section" id="recommendations" aria-labelledby="recommendations-title">
-      <div class="section-heading"><div><div class="eyebrow">WHERE TO BUILD</div><h2 id="recommendations-title">从可进入的业务，形成建设选择</h2><p>三个建设方向与一条进口线索。点击方向，沿证据查看完整推导。</p></div></div>
+      <div class="section-heading"><div><div class="eyebrow">WHERE TO BUILD</div><h2 id="recommendations-title">从可进入的业务，形成建设选择</h2><p>两个首批方向、一个条件性拓展方向与一条进口线索。点击查看完整推导。</p></div></div>
       <div class="filter-bar"><div class="filter-controls"><label>地区<select id="region-filter"><option value="">全部地区</option>${[...new Set(D.strategies.map(s => s.region))].map(r => `<option ${state.region === r ? 'selected' : ''}>${E(r)}</option>`).join('')}</select></label><label>行业<select id="industry-filter"><option value="">全部相关行业</option>${[...new Set(D.strategies.flatMap(s => s.industries))].map(i => `<option ${state.industry === i ? 'selected' : ''}>${E(i)}</option>`).join('')}</select></label><button id="reset-filters" class="text-button" data-reset hidden>清除筛选</button></div><span id="result-count" class="result-count" aria-live="polite"></span></div>
       <div class="strategy-grid" id="strategy-grid"></div>
       <p class="section-note">顺序综合客户基础、实际货流、可进入范围与现有交付经验；不代表市场规模或投资回报排名。</p>
@@ -78,6 +78,10 @@
     document.getElementById('industry-filter').addEventListener('change', e => { state.industry = e.target.value; updateGrid(); });
   }
   const sectionHeader = (n, title, caption, kind) => `<div class="proof-section-heading"><span class="step-number">${n}</span><div><h2>${title}</h2><p>${caption}</p></div>${tag(kind, 'kind')}</div>`;
+  function renderCompetition(c) {
+    if (!c) return '';
+    return `<div class="competition-analysis"><div class="competition-heading"><span class="eyebrow">WHY THE CUSTOMER WOULD CHOOSE US</span><h3>${E(c.title)}</h3></div><div class="competition-verdict">${tag('竞争判断 · 条件性机会','network')}<p>${E(c.verdict)}</p></div><div class="incumbent-note"><b>现有体系的进入门槛</b><p>${E(c.incumbent.text)}</p>${sources(c.incumbent.sources,true)}</div><div class="competitive-options">${c.options.map(o => `<article class="competitive-option"><h4>${E(o.name)}</h4><div class="competitive-fields"><div><span>已核实基础</span><p>${E(o.basis)}</p></div><div><span>可提出的价值</span><p>${E(o.value)}</p></div><div class="win-condition"><span>客户选择顺丰的条件</span><p>${E(o.win)}</p></div></div>${sources(o.sources,true)}</article>`).join('')}</div><div class="competition-gate"><b>何时推进资源投入</b><p>${E(c.gate)}</p></div></div>`;
+  }
   function renderDetail(s) {
     document.title = `${s.shortTitle} · 国际供应链战略研究`;
     const i = D.strategies.indexOf(s);
@@ -96,7 +100,7 @@
           <div class="needs-list">${s.needs.map((n, j) => `<article><span>${j + 1}</span><div><h3>${E(n.name)}</h3><p>${E(n.reason)}</p>${sources(n.sources, true)}</div></article>`).join('')}</div>
         </section>
         <section id="proof-4" class="proof-section">${sectionHeader('04', '顺丰凭什么进入', '客户入口、已有基础与实际采购范围同时成立。', '事实 + 判断')}
-          <div class="entry-list">${s.entry.map((n, j) => `<article class="entry-item entry-${j}"><h3>${icon(j === 2 ? 'layers' : 'check')}${E(n.name)}</h3><p>${E(n.text)}</p>${sources(n.sources, true)}</article>`).join('')}</div>
+          <div class="entry-list">${s.entry.map((n, j) => `<article class="entry-item entry-${j}"><h3>${icon(j === 2 ? 'layers' : 'check')}${E(n.name)}</h3><p>${E(n.text)}</p>${sources(n.sources, true)}</article>`).join('')}</div>${renderCompetition(s.competition)}
         </section>
         <section id="proof-5" class="proof-section">${sectionHeader('05', '具体补齐什么能力', '从已有基础出发，逐项对应建设内容与获取方式。', '建设建议')}
           <div class="build-list">${s.build.map(n => `<article class="build-item"><div class="build-title"><h3>${E(n.name)}</h3>${tag(n.method, 'method-tag')}</div><div class="build-columns"><div><small>已有基础</small><p>${E(n.base)}</p></div><div><small>需要补齐</small><p>${E(n.gap)}</p></div></div>${sources(n.sources, true)}</article>`).join('')}</div>

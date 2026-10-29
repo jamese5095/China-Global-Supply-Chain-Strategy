@@ -1,5 +1,7 @@
 """维护端生成数据。访客页面不提供上传、编辑或下载入口。"""
 import json
+import hashlib
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +15,8 @@ sources = [
     dict(id="anker-returns", title="安克德国官网 · 退货政策", publisher="Anker德国官网", kind="客户服务规则", date="2026-10-29查阅", locator="直接经营网店退货与入仓检验", url="https://www.anker.com/de/policies/refund-policy", supports="直接经营网店存在退货接收、入仓检验及退款流程。", limit="第三方销售渠道执行相应卖方政策；不能据此认定所有渠道共用同一退货合同。"),
     dict(id="midea", title="美的集团2026年半年度报告", publisher="美的集团", kind="企业中报", date="2026-08-28", locator="PDF第32—33、49—50、185页", url="https://static.cninfo.com.cn/finalpage/2026-08-28/1225533135.PDF", supports="泰国端到端整合、安得海外生产物流与泰国供应链公司设立；泰国、越南、巴西备件基地仓已运营。", limit="筹建交付中心不能视为全部投运，新增公司也不证明客户全部业务均已被承接。"),
     dict(id="sitc", title="SITC与海信泰国合资合作", publisher="SITC", kind="合作公告", date="2025-09-24", locator="9月23日签约；提及2024年越南合作", url="https://www.sitc.com/en/show.asp?id=1775", supports="海信在泰国存在与SITC的合资物流安排，体现航运连接与当地运营的组织嵌入。", limit="签约不能替代实际合同范围，不代表海信所有当地业务均由该主体承接。"),
+    dict(id="sitc-thailand", title="SITC官网 · 泰国物流网络与服务", publisher="SITC", kind="承接能力", date="2026-10-29查阅", locator="泰国公司介绍与专业服务；页面含历史更新内容", url="https://www.sitc.com/en/show.asp?id=130", supports="SITC披露在泰国开展仓储、国内配送、清关、卡车、多式联运及跨境物流等服务。", limit="集团或当地公司具备服务能力，不等于这些服务均已纳入美的项目；不使用该页面不一致的历史日期推断当前投运时间。"),
+    dict(id="sitc-air", title="SITC物流门户 · 产品与服务", publisher="SITC", kind="承接能力", date="2026-10-29查阅", locator="Product Intro / Air Freight", url="https://booking.sitc.com/portal/?lang=en", supports="SITC物流门户列有空运服务，因此不能将顺丰有空运、SITC没有空运作为差异化依据。", limit="产品目录没有披露美的泰国具体线路的时效、可用运力、服务质量或价格。"),
     dict(id="luckin", title="瑞幸2025年度20-F", publisher="瑞幸 / SEC", kind="企业年报", date="2026-03-27", locator="业务与供应链；海外经营模式", url="https://www.sec.gov/Archives/edgar/data/1767582/000110465926035712/lk-20251231x20f.htm", supports="披露采购Schaerer等全球供应商设备，以及马来西亚当地独家加盟经营模式。", limit="未据此确认具体订单起运地、贸易条款、物流委托方或当地加盟商采购分工。"),
     dict(id="schaerer", title="Schaerer官方公司介绍", publisher="Schaerer", kind="生产布局", date="2026-10-29查阅", locator="Headquarters and production in Switzerland", url="https://www.schaerer.com/en_uk/about-schaerer/", supports="总部及生产位于瑞士Zuchwil。", limit="制造商生产地不等于瑞幸每一笔订单的实际起运点。"),
     dict(id="xpo", title="MG与XPO英国长期仓配合作", publisher="XPO", kind="承接商案例", date="官网未标日期", locator="英国仓储、经销商与夜配服务", url="https://europenews.xpo.com/it/3122/mg-motor-and-xpo-agree-a-long-term-partnership-to-accelerate-warehousing/", supports="备件库存、系统、经销商收货节奏与夜间配送网络共同构成服务。", limit="长期合作不等于当前开放招标；XPO全网规模不是MG单个项目货量。"),
@@ -86,13 +90,13 @@ strategies = [
         "sources": ["anker-report", "anker-shipping", "anker-returns", "customers", "sf"], "trade": ["高科技"]
     },
     {
-        "id": "thailand", "order": 3, "region": "泰国", "status": "网络延伸", "tone": "network", "industries": ["高科技", "汽车"],
-        "title": "现有节点的运输、备件与逆向延伸", "shortTitle": "泰国 · 网络延伸", "location": "曼谷／邦纳—春武里／罗勇的工业与销售节点",
+        "id": "thailand", "order": 3, "region": "泰国", "status": "条件性拓展", "tone": "network", "industries": ["高科技", "汽车"],
+        "title": "现有节点的运输、备件与逆向延伸", "shortTitle": "泰国 · 条件性拓展", "location": "曼谷／邦纳—春武里／罗勇的工业与销售节点",
         "customers": ["美的等家电客户", "比亚迪等汽车客户"], "customerNote": "目标服务段分别确认；不默认掌握主物流采购权",
-        "summary": "围绕现有交付基础，争取可拆分运输、急件和备件调拨，扩大兼容线路与资源的利用。",
-        "logic": "业务存在，主体系已有自营、合资及承接安排", "method": "现有网络扩展 + 分段进入", "investment": "优先增加调度与客户覆盖，按合同增加资源",
+        "summary": "美的已有安得—SITC合资布局。先验证专项服务的时效、成本与交付价值，再决定是否扩大服务。",
+        "logic": "美的个案尚需相对竞争力证据", "method": "专项服务验证 + 有条件扩展", "investment": "先比较真实线路与订单表现，验证后配置增量资源",
         "facts": [
-            {"text": "美的已推进泰国从采购、海运到成品仓配与逆向的整合；安得相关主体与SITC成立泰国供应链公司。", "sources": ["midea"]},
+            {"text": "美的2026H1披露安得相关主体与SITC成立安得供应链（泰国）公司；安得相关主体合计持股49%，SITC相关主体持股51%。具体承接范围及排他性未披露。", "sources": ["midea"]},
             {"text": "海信与SITC签署泰国合资安排；顺丰已有泰国家电制造物流和汽车海外备件仓配经验。", "sources": ["sitc", "sf"]}
         ],
         "flow": [{"name": "港口与工厂", "detail": "可委托的集疏运、短驳"}, {"name": "既有库存节点", "detail": "调拨、急件及增量业务"}, {"name": "经销与服务端", "detail": "备件交付、旧件回流"}],
@@ -106,15 +110,26 @@ strategies = [
         "entry": [
             {"name": "商务入口", "text": "美的、比亚迪等在原客户表存在合作记录；当地公司、经销体系和中国总部采购分工须分别确认。", "sources": ["customers"]},
             {"name": "顺丰基础", "text": "已有泰国家电VMI提货、关务、跨境运输及汽车海外备件仓配案例可作为能力基础。", "sources": ["sf"]},
-            {"name": "采购与竞争条件", "text": "客户自身供应链整合及SITC合资安排已较深嵌入，进入路径应具体到可分拆业务和服务增量。", "sources": ["midea", "sitc"]}
+            {"name": "采购与竞争条件", "text": "美的已有安得—SITC合资安排；SITC本身也有当地仓配、关务及运输能力，物流门户列有空运。顺丰国内合作和集团交付经验尚不足以证明相对优势。", "sources": ["midea", "sitc-thailand", "sitc-air", "sf"]}
         ],
+        "competition": {
+            "title": "美的泰国：顺丰的竞争理由与成立条件",
+            "verdict": "当前证据证明顺丰具备相关交付基础，尚未证明相对安得—SITC方案具有赢单优势。美的个案调整为条件性机会；汽车目标客户须另行论证。",
+            "incumbent": {"text": "安得与美的制造、销售及库存体系有组织关联，SITC相关主体在泰国合资公司持股51%；SITC还披露当地仓储、配送、关务及多式联运能力。主仓配与常规运输已有较高进入门槛。合资信息不等于全部业务已被独家承接。", "sources": ["midea", "sitc-thailand"]},
+            "options": [
+                {"name": "时效型急件与紧急备件", "basis": "顺丰披露泰国国际航线及家电VMI提货、关务和跨境运输经验。", "value": "若客户有明确的加急需求，可组织中国端提货至泰国收货点的一体交付，争取分段运输或专项委托。", "win": "用相同起讫点、货型和截单时间，比较门到门时效、准时率、异常恢复及总成本。SITC也提供空运，不能仅凭顺丰拥有航空资源认定更快。", "sources": ["sf", "sitc-air"]},
+                {"name": "中国侧集货至泰国到厂交接", "basis": "顺丰有制造物流组织经验和泰国跨境、关务、VMI提货案例；客户关系可作为商务入口。", "value": "若客户存在跨服务商交接问题，可提出统一单证、预约及异常责任的方案。此需求与改善空间仍须客户订单验证。", "win": "对照安得—SITC现行同范围流程，证明交接、等待或异常处理有实际改善；安得也有端到端能力，统一接口本身不是独有优势。", "sources": ["sf", "customers", "midea"]},
+                {"name": "兼容节点与运输资源复用", "basis": "顺丰已有泰国家电及汽车备件交付经验，可研究从既有服务组织试单；资源可调用性仍需核实。", "value": "仅在仓位可调用、货型与时窗兼容时，研究共享调度、短驳或备件补货服务；不假定工业品可以直接共仓共配。", "win": "取得可调用资源和完整成本，再与现行合同同口径比较。没有可用仓位、报价或业务量时，不能声称顺丰成本更低。", "sources": ["sf"]}
+            ],
+            "gate": "只有客户明确开放服务范围，且同口径对照显示可量化的时效、交付或总成本价值，并满足采购准入、SLA和盈利要求，才将专项机会推进为资源扩展。未成立时，不以美的案例支持新仓或并购。"
+        },
         "build": [
             {"name": "线路与节点协同", "base": "东南亚制造和备件交付经验", "gap": "按货型、线路和时窗组织共同调度与异常处理", "method": "现有网络扩展", "sources": ["sf"]},
             {"name": "备件与逆向交接", "base": "汽车海外备件仓配服务", "gap": "编码、急件优先级、调拨、旧件回流和责任交接", "method": "内部建设 + 合作", "sources": ["sf"]},
-            {"name": "当地分段服务采购", "base": "客户关系与国际连接", "gap": "识别授权服务段、增量业务及当地执行伙伴", "method": "客户牵引", "sources": ["customers", "midea", "sitc"]}
+            {"name": "同口径服务与成本验证", "base": "客户关系、国际连接与当地交付经验", "gap": "确认可采购标段、现行SLA与费用，证明专项方案的差异价值", "method": "验证后扩展", "sources": ["customers", "midea", "sf", "sitc-thailand"]}
         ],
-        "decision": {"statement": "泰国先扩大现有资源的服务范围和客户覆盖。", "now": "面向可分拆运输、急件及备件服务拓展；生产物流和售后物流分别设计。", "condition": "新增业务须在货型、方向和时窗上兼容，并以实际贡献支撑调度、运力或仓位增加。", "boundary": "不把客户工厂产能当作顺丰订单，不围绕已有自营或合资体系重复配置大仓。", "costUnit": "每线路／车次／备件单的完整交付成本", "costRule": "验证兼容资源利用改善，避免用同国客户数量替代共同配送收益。"},
-        "sources": ["midea", "sitc", "customers", "sf"], "trade": ["高科技", "汽车"]
+        "decision": {"statement": "泰国保留拓展方向，美的个案先验证专项服务的竞争价值。", "now": "先确认美的可委托范围与现行方案，围绕急件、跨境到厂或兼容补货提出同口径对照；汽车备件另按目标客户评估。", "condition": "客户有明确采购范围，专项方案的服务或总成本改善可量化，且实际贡献足以支撑新增资源后再扩展。", "boundary": "现有证据未证明顺丰比安得—SITC更快、更便宜或更可靠；不以美的案例推动重复建仓或并购。", "costUnit": "同起讫点、货型、时窗与责任范围的每线路／票交付总成本", "costRule": "计入中国提货、国际段、关务、泰国交付、等待与异常处理，与现行合同和SLA同口径比较。"},
+        "sources": ["midea", "sitc-thailand", "sitc-air", "customers", "sf", "sitc"], "trade": ["高科技", "汽车"]
     },
     {
         "id": "inbound", "order": 4, "region": "进口链路", "status": "进口线索", "tone": "secondary", "industries": ["零售餐饮"],
@@ -166,6 +181,16 @@ for s in strategies:
     for collection in ['facts', 'needs', 'entry', 'build']:
         for row in s[collection]:
             assert set(row['sources']) <= ids
+    if s.get('competition'):
+        assert set(s['competition']['incumbent']['sources']) <= set(s['sources'])
+        for option in s['competition']['options']:
+            assert set(option['sources']) <= set(s['sources'])
 ROOT.joinpath('data.json').write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
 ROOT.joinpath('data.js').write_text('window.STRATEGY_DATA = ' + json.dumps(data, ensure_ascii=False, separators=(',', ':')) + ';\n')
+index_path = ROOT / 'index.html'
+html = index_path.read_text()
+for asset in ['styles.css', 'data.js', 'app.js']:
+    version = hashlib.sha256(ROOT.joinpath(asset).read_bytes()).hexdigest()[:10]
+    html = re.sub(r'((?:src|href)=")' + re.escape(asset) + r'(?:\?v=[^"]*)?"', lambda m: m.group(1) + asset + '?v=' + version + '"', html)
+index_path.write_text(html)
 print(f"已生成：{len(strategies)}个方向、{len(sources)}条依据、{len(trade)}组贸易背景")
