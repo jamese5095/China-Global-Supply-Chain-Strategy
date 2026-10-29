@@ -1,0 +1,171 @@
+"""维护端生成数据。访客页面不提供上传、编辑或下载入口。"""
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+sources = [
+    dict(id="sf", title="顺丰控股2025年度报告", publisher="顺丰控股", kind="企业年报", date="2026-03-31", locator="PDF第34—39页", url="https://static.cninfo.com.cn/finalpage/2026-03-31/1225057404.PDF", supports="中越跨境、东南亚家电制造物流、汽车海外备件、德国仓配与退货的既有交付经验。", limit="匿名案例不能识别为某一家实名客户；集团已开展服务不等于当地资源当前可直接调用。"),
+    dict(id="customers", title="客户工作簿 · 原始客户记录", publisher="内部客户资料", kind="客户关系", date="2026-10-28", locator="Input①-SF Top 3000客户；出海榜关联", supports="立讯、歌尔、安克、美的、比亚迪、瑞幸等主体在原客户表存在正收入记录。页面不展示收入金额。", limit="仅支持国内商务关系基础；集团、海外子公司及经销商采购权分别确认。场景符号未用于推断实际服务。"),
+    dict(id="luxshare", title="立讯越南项目环境影响评价文件", publisher="越南环境主管部门公示平台", kind="项目文件", date="2025-04", locator="PDF第1、48—49、131—134页", url="https://thamvan.mae.gov.vn/Uploads/18042025/1T17.4.%20BC%20DTM%20DA%20LUXSHARE-ICT-BAC%20GIANG.pdf", supports="项目地点、多个品类料件的中国来源，以及部分维修业务由境外商人指定运输的模式。", limit="文件包含现状与扩建内容，申报用量不是实际运输量；也不证明顺丰已获得委托。"),
+    dict(id="anker-report", title="安克创新2025年度报告", publisher="安克创新", kind="企业年报", date="2026-04-10", locator="PDF第22—23页", url="https://static.cninfo.com.cn/finalpage/2026-04-10/1225090973.PDF", supports="欧洲收入81.51亿元、同比增长43.48%；北美收入141.33亿元。全球渠道包含平台、官网与线下。", limit="收入不是物流采购额，全球渠道比例不是德国渠道比例，未披露德国仓城市。"),
+    dict(id="anker-shipping", title="安克德国官网 · 配送政策", publisher="Anker德国官网", kind="客户服务规则", date="2026-10-29查阅", locator="Wie wird meine Bestellung versendet?", url="https://www.anker.com/de/policies/shipping-policy", supports="标准订单主要通过德国仓3PL履约，MCF补位；加急主要使用MCF，DHL Express补位。", limit="主仓3PL名称及仓库城市未披露；零售运费不是物流服务商结算价。"),
+    dict(id="anker-returns", title="安克德国官网 · 退货政策", publisher="Anker德国官网", kind="客户服务规则", date="2026-10-29查阅", locator="直接经营网店退货与入仓检验", url="https://www.anker.com/de/policies/refund-policy", supports="直接经营网店存在退货接收、入仓检验及退款流程。", limit="第三方销售渠道执行相应卖方政策；不能据此认定所有渠道共用同一退货合同。"),
+    dict(id="midea", title="美的集团2026年半年度报告", publisher="美的集团", kind="企业中报", date="2026-08-28", locator="PDF第32—33、49—50、185页", url="https://static.cninfo.com.cn/finalpage/2026-08-28/1225533135.PDF", supports="泰国端到端整合、安得海外生产物流与泰国供应链公司设立；泰国、越南、巴西备件基地仓已运营。", limit="筹建交付中心不能视为全部投运，新增公司也不证明客户全部业务均已被承接。"),
+    dict(id="sitc", title="SITC与海信泰国合资合作", publisher="SITC", kind="合作公告", date="2025-09-24", locator="9月23日签约；提及2024年越南合作", url="https://www.sitc.com/en/show.asp?id=1775", supports="海信在泰国存在与SITC的合资物流安排，体现航运连接与当地运营的组织嵌入。", limit="签约不能替代实际合同范围，不代表海信所有当地业务均由该主体承接。"),
+    dict(id="luckin", title="瑞幸2025年度20-F", publisher="瑞幸 / SEC", kind="企业年报", date="2026-03-27", locator="业务与供应链；海外经营模式", url="https://www.sec.gov/Archives/edgar/data/1767582/000110465926035712/lk-20251231x20f.htm", supports="披露采购Schaerer等全球供应商设备，以及马来西亚当地独家加盟经营模式。", limit="未据此确认具体订单起运地、贸易条款、物流委托方或当地加盟商采购分工。"),
+    dict(id="schaerer", title="Schaerer官方公司介绍", publisher="Schaerer", kind="生产布局", date="2026-10-29查阅", locator="Headquarters and production in Switzerland", url="https://www.schaerer.com/en_uk/about-schaerer/", supports="总部及生产位于瑞士Zuchwil。", limit="制造商生产地不等于瑞幸每一笔订单的实际起运点。"),
+    dict(id="xpo", title="MG与XPO英国长期仓配合作", publisher="XPO", kind="承接商案例", date="官网未标日期", locator="英国仓储、经销商与夜配服务", url="https://europenews.xpo.com/it/3122/mg-motor-and-xpo-agree-a-long-term-partnership-to-accelerate-warehousing/", supports="备件库存、系统、经销商收货节奏与夜间配送网络共同构成服务。", limit="长期合作不等于当前开放招标；XPO全网规模不是MG单个项目货量。"),
+    dict(id="dhl", title="DHL越南CFS与北宁集成仓储扩展", publisher="DHL", kind="竞争布局", date="2025-11-17", locator="北宁集成仓储、高值货区与海防CFS", url="https://www.dhl.com/vn-vi/home/press/press-archive/2025/dhl-global-forwarding-vietnam-scales-up-its-container-freight-station-network.html", supports="当地竞争门槛包括口岸连接、仓储、安全、增值作业和可视化。", limit="该来源未披露立讯或歌尔为其客户，不能构造客户与DHL的承接关系。"),
+    dict(id="mixue", title="蜜雪集团2025年度报告", publisher="蜜雪集团", kind="企业年报", date="2026-04-23", locator="PDF第15页", url="https://www1.hkexnews.hk/listedco/listconews/sehk/2026/0423/2026042301901.pdf", supports="披露海外本地仓储配送体系及自主运营特征。", limit="门店与自营网络规模不能直接当作尚未外包的冷仓需求。"),
+    dict(id="sany", title="三一欧洲备件服务介绍", publisher="SANY Europe", kind="客户运营布局", date="2026-10-29查阅", locator="Bedburg欧洲备件仓", url="https://www.sanyeurope.com/en/ersatzteile/", supports="三一在Bedburg已有欧洲备件仓及经销服务。", limit="既有客户自营仓不等于新增外包需求，需分别研究补货、急件和运营标段。"),
+    dict(id="trade-input", title="2025年六行业代表商品进出口汇总图", publisher="本次研究提供的贸易资料", kind="贸易背景", date="2025年全年", locator="金额单位：亿美元；按原图保留统计口径", supports="观察代表商品进出口规模和方向。原图列示海关总署（商务部转载）、农业农村部及行业协会等来源。", limit="代理、样本和宽口径并存，范围有交叉，不跨行业加总或按图中比例排名；没有国家流向、物流采购额和企业海外本地产销数据。"),
+]
+
+strategies = [
+    {
+        "id": "vietnam", "order": 1, "region": "越南北部", "status": "首批建设", "tone": "primary", "industries": ["高科技"],
+        "title": "制造物料跨境补给与到厂交接", "shortTitle": "北越 · 制造补给", "location": "北宁省（含原北江区域）—河内—海防制造走廊",
+        "customers": ["立讯", "歌尔"], "customerNote": "商务拓展目标；海外委托范围逐主体确认",
+        "summary": "连接中国供应商与越南工厂，把跨境运输延伸到到厂预约、批次交接和急件补给。",
+        "logic": "料件来源可追溯，已有中越交付经验", "method": "内部运营 + 当地合作", "investment": "团队、接口与交接标准先行，周转资源随业务配置",
+        "facts": [
+            {"text": "立讯越南项目文件列明电路板、塑料件、线缆等多项料件来源为中国，生产节点位于原北江区域。", "sources": ["luxshare"]},
+            {"text": "内部客户资料提供立讯、歌尔的合作关系基础；具体料件来源证据来自立讯项目，不扩推为歌尔全部货流。", "sources": ["customers", "luxshare"]}
+        ],
+        "flow": [{"name": "中国供应商", "detail": "电路板、塑料件、线缆等"}, {"name": "跨境运输与关务", "detail": "计划、单证与异常协调"}, {"name": "越南工厂", "detail": "到厂预约、批次交接"}],
+        "flowNote": "图示是目标服务链路；具体口岸、供应商地址及运输委托由客户订单确定。",
+        "flowSources": ["luxshare"],
+        "needs": [
+            {"name": "计划性料件运输", "reason": "中国来源料件与越南制造连接，可按客户运输计划组织跨境班次。", "sources": ["luxshare"]},
+            {"name": "到厂与急件协同", "reason": "服务从跨境到货延伸到预约、交接与异常补给，减少分段责任断点。", "sources": ["sf"]},
+            {"name": "批次暂存与供料", "reason": "客户授予库存或工厂服务范围后，再配置周转与补料作业。", "sources": ["luxshare", "sf"]}
+        ],
+        "entry": [
+            {"name": "商务入口", "text": "立讯、歌尔在内部客户表有合作记录，具备联系现有客户国际业务团队的基础。", "sources": ["customers"]},
+            {"name": "顺丰基础", "text": "年报披露中越跨境可视化服务，以及东南亚制造仓配和入厂物流交付经验。", "sources": ["sf"]},
+            {"name": "采购与竞争条件", "text": "立讯部分维修运输由境外委托方指定；北宁已有DHL高值货仓储等布局。需争取可委托段，并满足当地交付标准。", "sources": ["luxshare", "dhl"]}
+        ],
+        "build": [
+            {"name": "中越联合项目运营", "base": "中越运输与制造物流经验", "gap": "统一客户计划、单证、到厂预约及异常升级", "method": "内部建设", "sources": ["sf"]},
+            {"name": "当地交接与短驳", "base": "既有跨境连接", "gap": "合规关务、园区短驳、批次交接和承运商管理", "method": "当地合作", "sources": ["sf", "dhl"]},
+            {"name": "可扩展周转作业", "base": "制造仓配运营方法", "gap": "按客户授权配置料件暂存与库存接口", "method": "按业务配置", "sources": ["sf", "luxshare"]}
+        ],
+        "decision": {"statement": "将北越制造补给纳入首批经营与运营能力建设。", "now": "配置客户与项目运营责任人，先争取可采购的进口料件运输和到厂交接服务；业务稳定后延伸库存与供料。", "condition": "长期仓租及固定运力须由服务范围、班次、约定量及单位贡献支持。", "boundary": "不预设已获得整厂物流；境外指定承运的业务不计入可自主争取范围。", "costUnit": "同线路、时窗与责任范围下的每车／票完整交付成本", "costRule": "计入关务、短驳、等待和异常处理后，验证客户服务改善与顺丰增量贡献。"},
+        "sources": ["luxshare", "customers", "sf", "dhl"], "trade": ["高科技"]
+    },
+    {
+        "id": "germany", "order": 2, "region": "德国", "status": "首批建设", "tone": "primary", "industries": ["高科技"],
+        "title": "品牌当地库存履约与退货运营", "shortTitle": "德国 · 品牌履约", "location": "优先评估顺丰已有德国节点，具体服务城市随订单与库存确定",
+        "customers": ["安克等中国消费科技品牌"], "customerNote": "安克有德国3PL履约依据；主仓运营商未披露",
+        "summary": "围绕中国品牌当地库存，连接补货、官网履约与退货检验，逐步扩大可采购服务范围。",
+        "logic": "当地外包模式明确，可复用德国运营经验", "method": "现有节点复用 + 运营补齐", "investment": "订单接口、承运商路由与退货作业先行",
+        "facts": [
+            {"text": "安克2025年欧洲收入81.51亿元，同比增长43.48%；这是品牌经营规模，不能换算德国物流采购额。", "sources": ["anker-report"]},
+            {"text": "安克德国官网披露德国仓3PL、MCF和DHL Express的分工，并设直接经营网店的退货入仓检验流程。", "sources": ["anker-shipping", "anker-returns"]}
+        ],
+        "flow": [{"name": "中国补货", "detail": "按品牌采购范围承接国际段"}, {"name": "德国当地库存", "detail": "库存可售、订单分流"}, {"name": "消费者与退货", "detail": "官网履约、接收检验"}],
+        "flowNote": "主链为本次提出的服务组合；德国当地履约已核实，具体中国起运点与全程采购标段需按合同确定。",
+        "flowSources": ["anker-shipping", "anker-returns"],
+        "needs": [
+            {"name": "当地库存与订单履约", "reason": "德国仓承担标准订单，缺货时由MCF补位，库存可用性与渠道分流共同影响服务。", "sources": ["anker-shipping"]},
+            {"name": "退货检验与库存回流", "reason": "直接经营网店存在退货接收与检验环节，可研究独立标段或与履约组合承接。", "sources": ["anker-returns"]},
+            {"name": "多承运商服务组织", "reason": "常规与加急订单使用不同渠道，建设重点包括订单路由、末端交付和异常衔接。", "sources": ["anker-shipping"]}
+        ],
+        "entry": [
+            {"name": "商务入口", "text": "安克在内部客户表有合作记录，可追踪德国品牌履约采购；国内关系不等于当地合同。", "sources": ["customers"]},
+            {"name": "顺丰基础", "text": "顺丰已披露门兴格拉德巴赫3D打印客户仓配案例，以及德国履约与退货仓基础。", "sources": ["sf"]},
+            {"name": "采购与竞争条件", "text": "MCF及DHL Express已参与履约，主仓3PL名称未披露；需要对同等货型、时效与峰值证明总成本和交付价值。", "sources": ["anker-shipping"]}
+        ],
+        "build": [
+            {"name": "品牌库存与订单接口", "base": "德国仓配与履约经验", "gap": "库存可售规则、官网订单、补货与渠道分流", "method": "内部建设", "sources": ["sf", "anker-shipping"]},
+            {"name": "退货分级运营", "base": "德国退货仓及国内逆向运营方法", "gap": "接收、检验、分级、重入库与客户授权交接", "method": "内部建设", "sources": ["sf", "anker-returns"]},
+            {"name": "当地配送与特殊货型", "base": "既有国际及当地服务资源", "gap": "末端承运商管理；带电和高容量电池商品单独核准", "method": "内部统筹 + 合作", "sources": ["sf", "anker-shipping"]}
+        ],
+        "decision": {"statement": "在既有德国节点基础上优先发展品牌履约与退货运营。", "now": "争取品牌采购的3PL履约、库存补货或退货标段；以客户库存和订单分布决定具体节点。", "condition": "确认可采购订单量、峰值、SKU和带电商品要求后，再决定仓位与人员扩容。", "boundary": "安克当前仓址未披露，不将其认作门兴；德国电商仓不自动具备汽车夜配能力。", "costUnit": "每单完整履约成本 + 每件退货处理成本", "costRule": "用实际结算及订单结构比较现有3PL／MCF方案，不以官网消费者运费作报价基准。"},
+        "sources": ["anker-report", "anker-shipping", "anker-returns", "customers", "sf"], "trade": ["高科技"]
+    },
+    {
+        "id": "thailand", "order": 3, "region": "泰国", "status": "网络延伸", "tone": "network", "industries": ["高科技", "汽车"],
+        "title": "现有节点的运输、备件与逆向延伸", "shortTitle": "泰国 · 网络延伸", "location": "曼谷／邦纳—春武里／罗勇的工业与销售节点",
+        "customers": ["美的等家电客户", "比亚迪等汽车客户"], "customerNote": "目标服务段分别确认；不默认掌握主物流采购权",
+        "summary": "围绕现有交付基础，争取可拆分运输、急件和备件调拨，扩大兼容线路与资源的利用。",
+        "logic": "业务存在，主体系已有自营、合资及承接安排", "method": "现有网络扩展 + 分段进入", "investment": "优先增加调度与客户覆盖，按合同增加资源",
+        "facts": [
+            {"text": "美的已推进泰国从采购、海运到成品仓配与逆向的整合；安得相关主体与SITC成立泰国供应链公司。", "sources": ["midea"]},
+            {"text": "海信与SITC签署泰国合资安排；顺丰已有泰国家电制造物流和汽车海外备件仓配经验。", "sources": ["sitc", "sf"]}
+        ],
+        "flow": [{"name": "港口与工厂", "detail": "可委托的集疏运、短驳"}, {"name": "既有库存节点", "detail": "调拨、急件及增量业务"}, {"name": "经销与服务端", "detail": "备件交付、旧件回流"}],
+        "flowNote": "图示为可研究的服务段；生产物料、成品和售后备件分别运营，不将客户既有主体系视为开放订单。",
+        "flowSources": ["midea", "sf"],
+        "needs": [
+            {"name": "可分拆运输", "reason": "整合型客户仍需明确具体可采购服务段，再争取工厂、仓库和港口间运输。", "sources": ["midea"]},
+            {"name": "急件与备件调拨", "reason": "复用当地交付基础，围绕售后库存补货和紧急交付组织服务。", "sources": ["sf", "midea"]},
+            {"name": "增量与逆向交接", "reason": "按新增品类、车型、覆盖区域或逆向标段进入，兼容资源才进入共同调度。", "sources": ["sf"]}
+        ],
+        "entry": [
+            {"name": "商务入口", "text": "美的、比亚迪等在原客户表存在合作记录；当地公司、经销体系和中国总部采购分工须分别确认。", "sources": ["customers"]},
+            {"name": "顺丰基础", "text": "已有泰国家电VMI提货、关务、跨境运输及汽车海外备件仓配案例可作为能力基础。", "sources": ["sf"]},
+            {"name": "采购与竞争条件", "text": "客户自身供应链整合及SITC合资安排已较深嵌入，进入路径应具体到可分拆业务和服务增量。", "sources": ["midea", "sitc"]}
+        ],
+        "build": [
+            {"name": "线路与节点协同", "base": "东南亚制造和备件交付经验", "gap": "按货型、线路和时窗组织共同调度与异常处理", "method": "现有网络扩展", "sources": ["sf"]},
+            {"name": "备件与逆向交接", "base": "汽车海外备件仓配服务", "gap": "编码、急件优先级、调拨、旧件回流和责任交接", "method": "内部建设 + 合作", "sources": ["sf"]},
+            {"name": "当地分段服务采购", "base": "客户关系与国际连接", "gap": "识别授权服务段、增量业务及当地执行伙伴", "method": "客户牵引", "sources": ["customers", "midea", "sitc"]}
+        ],
+        "decision": {"statement": "泰国先扩大现有资源的服务范围和客户覆盖。", "now": "面向可分拆运输、急件及备件服务拓展；生产物流和售后物流分别设计。", "condition": "新增业务须在货型、方向和时窗上兼容，并以实际贡献支撑调度、运力或仓位增加。", "boundary": "不把客户工厂产能当作顺丰订单，不围绕已有自营或合资体系重复配置大仓。", "costUnit": "每线路／车次／备件单的完整交付成本", "costRule": "验证兼容资源利用改善，避免用同国客户数量替代共同配送收益。"},
+        "sources": ["midea", "sitc", "customers", "sf"], "trade": ["高科技", "汽车"]
+    },
+    {
+        "id": "inbound", "order": 4, "region": "进口链路", "status": "进口线索", "tone": "secondary", "industries": ["零售餐饮"],
+        "title": "沿中国买方采购关系组织进口交付", "shortTitle": "Inbound · 采购链延伸", "location": "海外实际供应点 → 中国；起运节点按订单确认",
+        "customers": ["瑞幸等已有中国采购客户"], "customerNote": "采购关系可追踪；起运点与委托权尚待确认",
+        "summary": "以进口设备和备件采购为入口，组合海外提货、国际运输、关务和国内设备交付。",
+        "logic": "已有采购线索，尚不支持新增海外专仓", "method": "国际资源组织 + 当地伙伴", "investment": "优先复用既有运输、关务及国内配送能力",
+        "facts": [
+            {"text": "瑞幸年报披露采购Schaerer等全球供应商设备；内部客户记录提供买方合作基础。", "sources": ["luckin", "customers"]},
+            {"text": "Schaerer官网披露瑞士Zuchwil总部及生产，但不能据此确定瑞幸具体订单的实际起运点。", "sources": ["schaerer"]}
+        ],
+        "flow": [{"name": "海外供应点", "detail": "按采购订单确认地点"}, {"name": "国际段与进口", "detail": "提货、运输、关务"}, {"name": "中国设备交付", "detail": "设备／备件仓配衔接"}],
+        "flowNote": "这是待确认运输委托的业务线索，不作为已完成投资论证的建设项目。",
+        "flowSources": ["luckin", "schaerer"],
+        "needs": [
+            {"name": "买方采购与物流衔接", "reason": "先确认贸易条款、提货责任与运输委托，再将采购关系转成可报价服务。", "sources": ["luckin"]},
+            {"name": "进口设备一体交付", "reason": "海外提货、国际运输、进口关务与国内设备交付可以围绕实际订单组合。", "sources": ["sf"]}
+        ],
+        "entry": [
+            {"name": "商务入口", "text": "瑞幸是表内已有合作客户，并有可追踪设备供应商；不自动等同进口运输采购授权。", "sources": ["customers", "luckin"]},
+            {"name": "顺丰基础", "text": "可研究复用国际运输、关务、设备及国内配送的服务组织基础。", "sources": ["sf"]},
+            {"name": "采购与经营条件", "text": "外国制造商的生产地、发货库存点和合同卖方可能不同；海外加盟经营也可能改变采购主体。", "sources": ["luckin", "schaerer"]}
+        ],
+        "build": [
+            {"name": "进口订单与分段统筹", "base": "客户关系、国际运输与关务基础", "gap": "采购条款、提货授权、费用责任与国内交付协同", "method": "内部统筹", "sources": ["customers", "sf"]},
+            {"name": "海外提货与专业作业", "base": "国际及合作网络", "gap": "核准实际起运节点的执行资源、设备包装与操作条件", "method": "合格伙伴", "sources": ["sf", "schaerer"]}
+        ],
+        "decision": {"statement": "作为次要业务线索推进，先取得具体采购与运输委托。", "now": "围绕设备或备件订单组织可报价的提货、国际段、进口关务与国内交付组合。", "condition": "确认订单起运地、贸易条款、委托主体、货型及频次后形成实际线路。", "boundary": "当前不新增瑞士专仓，不据采购关系承诺固定包机或专用运力。", "costUnit": "实际订单的海外提货至中国交付总成本", "costRule": "按责任范围逐段计价，使用可核实的订单与供应商成本。"},
+        "sources": ["luckin", "schaerer", "customers", "sf"], "trade": ["零售餐饮"]
+    }
+]
+
+trade = [
+    dict(industry="高科技", scope="高新技术产品 · 代理口径", exports=9478.99, imports=8225.42, meaning="提供跨境商品规模背景，不能拆出北越料件或德国品牌履约市场。"),
+    dict(industry="工业设备", scope="工程机械产品 · 样本", exports=601.69, imports=25.75, meaning="提示工程机械出口方向；售后库存、急件与当地交付需另用客户事实验证。"),
+    dict(industry="汽车", scope="整车及底盘 + 汽车零配件", exports=2381.78, imports=447.68, meaning="出口包含整车与零配件，不能直接推算某国备件单量或仓位。"),
+    dict(industry="消费品", scope="化妆品类商品 · 样本", exports=78.20, imports=161.80, meaning="反映该样本进口规模，不能代表全部消费品或直接形成海外建设建议。"),
+    dict(industry="零售餐饮", scope="农产品 · 宽口径", exports=1041.60, imports=2074.10, meaning="农产品货流不是餐饮门店物流；需要买方、商品和温区进一步关联。"),
+    dict(industry="生命科学与医药", scope="医药保健品 · 含医疗器械", exports=1113.41, imports=903.76, meaning="行业贸易结构包含不同产品和作业要求，不能据此确定专用医药设施投入。")
+]
+
+data = {"schemaVersion": "1.0", "title": "中国企业国际供应链机会与能力布局", "asOf": "2026-10-29", "sources": sources, "strategies": strategies, "trade": trade}
+ids = {s['id'] for s in sources}
+assert len(ids) == len(sources)
+assert len({s['id'] for s in strategies}) == len(strategies)
+for s in strategies:
+    assert set(s['sources']) <= ids
+    assert len(s['flow']) >= 2 and s['build'] and s['decision']['condition']
+    for collection in ['facts', 'needs', 'entry', 'build']:
+        for row in s[collection]:
+            assert set(row['sources']) <= ids
+ROOT.joinpath('data.json').write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+ROOT.joinpath('data.js').write_text('window.STRATEGY_DATA = ' + json.dumps(data, ensure_ascii=False, separators=(',', ':')) + ';\n')
+print(f"已生成：{len(strategies)}个方向、{len(sources)}条依据、{len(trade)}组贸易背景")
